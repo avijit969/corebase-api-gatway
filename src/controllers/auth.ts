@@ -1,0 +1,72 @@
+import { Context } from 'hono'
+import { sendResponse } from '../utils/response'
+import { ApiError } from '../utils/errors'
+import { sign } from 'hono/jwt'
+import { Bindings, Variables } from '../types'
+import { getPlatformDb } from '../db/platform'
+import { eq } from 'drizzle-orm'
+import { users } from '../db/schema'
+
+export const register = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    const body = await c.req.json()
+    if (!body.email || !body.password) {
+        throw new ApiError('Email and password required', 400, 'AUTH_INVALID_INPUT')
+    }
+
+    const db = getPlatformDb()
+
+    try {
+        const userId = 'user_' + crypto.randomUUID()
+        const passwordHash = await Bun.password.hash(body.password)
+
+        const result = await db.insert(users).values({
+            id: userId,
+            email: body.email,
+            passwordHash: passwordHash,
+            role: 'authenticated'
+        }).execute()
+        console.log(result)
+        return sendResponse(c, {
+            user: { id: userId, email: body.email }
+        }, 201)
+    } catch (e: any) {
+        if (e.code === '2067') { // Unique violation
+            throw new ApiError('Email already exists', 409, 'AUTH_EMAIL_EXISTS')
+        }
+        console.error(e)
+        throw new ApiError('Failed to create user', 500, 'AUTH_ERROR')
+    }
+}
+
+export const login = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    const body = await c.req.json()
+    const { email, password } = body
+
+    if (!email || !password) {
+        throw new ApiError('Email and password required', 400, 'AUTH_INVALID_INPUT')
+    }
+
+    const db = getPlatformDb()
+
+    const [user] = await db.select().from(users).where(eq(users.email, email)).limit(1)
+
+    if (!user) {
+        throw new ApiError('Invalid credentials', 400, 'AUTH_INVALID_CREDENTIALS')
+    }
+
+    const valid = await Bun.password.verify(password, user.passwordHash)
+    if (!valid) {
+        throw new ApiError('Invalid credentials', 400, 'AUTH_INVALID_CREDENTIALS')
+    }
+
+    // Mint token
+    const secret = c.env?.JWT_SECRET || 'super_secure_jwt_secret_key_12345'
+    const token = await sign({
+        sub: user.id,
+        project_id: 'default',
+        role: user.role,
+        exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour
+    }, secret)
+
+    return sendResponse(c, { access_token: token, expires_in: 3600 })
+}
