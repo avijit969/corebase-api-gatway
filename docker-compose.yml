@@ -1,0 +1,27 @@
+services:
+  app:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-super_secret}
+      - DATABASE_URL=${DATABASE_URL:-file:sqlite.db} 
+      - STORAGE_BUCKET=${STORAGE_BUCKET}
+    volumes:
+      - ./dbs:/app/dbs
+      - ./sqlite.db:/app/sqlite.db
+    depends_on:
+      - redis
+    restart: always
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: always
+
+volumes:
+  redis_data:

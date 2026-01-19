@@ -4,6 +4,7 @@ export interface Bindings {
     DATABASE_URL: string
     STORAGE_BUCKET: string
     ADMIN_SECRET: string
+    REDIS_URL?: string
 }
 
 export interface Variables {
