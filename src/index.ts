@@ -16,6 +16,7 @@ import dbRoutes from './routes/db'
 import storageRoutes from './routes/storage'
 import projectRoutes from './routes/projects'
 import platformAuthRoutes from './routes/platform.auth'
+import uiRoutes from './routes/ui'
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
@@ -33,6 +34,7 @@ app.use('*', projectMiddleware)
 app.use('*', policyMiddleware)
 
 // Routes
+app.route('/', uiRoutes)
 app.route('/v1/auth', authRoutes)
 app.route('/v1/platform/auth', platformAuthRoutes)
 app.route('/v1/projects', projectRoutes)

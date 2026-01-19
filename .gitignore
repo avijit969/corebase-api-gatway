@@ -5,5 +5,5 @@ node_modules/
 .env
 
 # data
-dbs/
-*.sqlite
+# dbs/
+# *.sqlite
