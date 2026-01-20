@@ -7,7 +7,7 @@ import { sign } from 'hono/jwt'
 import * as fs from 'node:fs'
 import { getProjectDbPath } from './db'
 // register the end user of the project
-export const projectSignup = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+const projectSignup = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     let projectId: string | undefined = c.get('projectId')
     if (!projectId) {
         throw new ApiError('Project ID required header (x-project-id)', 400, 'AUTH_MISSING_PROJECT')
@@ -61,7 +61,7 @@ export const projectSignup = async (c: Context<{ Bindings: Bindings, Variables: 
 }
 
 // login the end user of the project
-export const projectLogin = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+const projectLogin = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     let projectId: string | undefined = c.get('projectId')
     if (!projectId) {
         throw new ApiError('Project ID required header', 400, 'AUTH_MISSING_PROJECT')
@@ -114,7 +114,7 @@ export const projectLogin = async (c: Context<{ Bindings: Bindings, Variables: V
 }
 
 // get the end user profile
-export const projectMe = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+const projectMe = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const userPayload = c.get('user')
     let projectId = c.get('projectId')
 
@@ -141,4 +141,39 @@ export const projectMe = async (c: Context<{ Bindings: Bindings, Variables: Vari
     return sendResponse(c, {
         user
     })
+}
+
+
+const getAllAuthenticatedUsers = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    const userPayload = c.get('user')
+    let projectId = c.req.param('projectId')
+
+    if (!projectId) {
+        throw new ApiError('Project ID required header', 400, 'AUTH_MISSING_PROJECT')
+    }
+
+    if (!userPayload || !projectId) {
+        throw new ApiError('Not authenticated', 401, 'AUTH_REQUIRED')
+    }
+
+    const dbPath = getProjectDbPath(projectId)
+    if (!fs.existsSync(dbPath)) {
+        throw new ApiError('Project database not found', 404, 'DB_NOT_FOUND')
+    }
+
+    const db = new Database(dbPath)
+    const users = db.prepare('SELECT id, email, role,name, created_at FROM auth_users').all() as any[]
+    db.close()
+
+    return sendResponse(c, {
+        users
+    })
+}
+
+
+export {
+    projectSignup,
+    projectLogin,
+    projectMe,
+    getAllAuthenticatedUsers
 }

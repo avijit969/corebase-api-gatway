@@ -7,25 +7,26 @@ import * as fs from 'node:fs'
 import * as path from 'node:path'
 import { getPlatformDb } from '../db/platform'
 import { projects, apiKeys } from '../db/schema'
+import { eq } from 'drizzle-orm'
 
-export const createProject = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
-    // 1. Authorization check (Platform level) - For now allow any authenticated user
-    const user = c.get('user')
-    if (!user) {
-        throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED')
-    }
-
-    const body = await c.req.json()
-    const { name } = body
-
-    if (!name) {
-        throw new ApiError('Project name is required', 400, 'INVALID_INPUT')
-    }
-
-    // 2. Generate Project ID
-    const projectId = 'proj_' + crypto.randomUUID().slice(0, 12)
-
+const createProject = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     try {
+        // 1. Authorization check (Platform level) - For now allow any authenticated user
+        const user = c.get('user')
+        if (!user) {
+            throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED')
+        }
+
+        const body = await c.req.json()
+        const { name } = body
+
+        if (!name) {
+            throw new ApiError('Project name is required', 400, 'INVALID_INPUT')
+        }
+
+        // 2. Generate Project ID
+        const projectId = 'proj_' + crypto.randomUUID().slice(0, 12)
+
         const platformDb = getPlatformDb()
 
         // Insert Project
@@ -52,6 +53,7 @@ export const createProject = async (c: Context<{ Bindings: Bindings, Variables: 
                 fs.mkdirSync(dbsDir, { recursive: true })
             } catch (e) {
                 console.error('Failed to create dbs dir:', e)
+                throw new ApiError('Failed to initialize storage directory', 500, 'INTERNAL_ERROR')
             }
         }
 
@@ -106,28 +108,149 @@ export const createProject = async (c: Context<{ Bindings: Bindings, Variables: 
         }, 201)
 
     } catch (error) {
+        if (error instanceof ApiError) {
+            throw error
+        }
         console.error('Project creation failed:', error)
-        throw new ApiError('Failed to provision project resources', 500, 'INTERNAL_ERROR')
+        throw new ApiError('Failed to provision project resources', 500, 'INTERNAL_ERROR', error)
     }
 }
 
-export const getProject = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
-    const id = c.req.param('id')
-    const dbPath = path.resolve(process.cwd(), 'dbs', `${id}.sqlite`)
-
-    if (!fs.existsSync(dbPath)) {
-        throw new ApiError('Project not found', 404, 'NOT_FOUND')
+const getAllProjects = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    try {
+        const user = c.get('user')
+        if (!user) {
+            throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED')
+        }
+        const platformDb = getPlatformDb()
+        const allProjects = await platformDb.select().from(projects).where(eq(projects.ownerId, user.id))
+        return sendResponse(c, allProjects)
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error
+        }
+        console.error('Failed to fetch projects:', error)
+        throw new ApiError('Failed to fetch projects', 500, 'INTERNAL_ERROR', error)
     }
+}
 
-    const db = new Database(dbPath)
-    const meta = db.prepare('SELECT * FROM _meta').all().reduce((acc: Record<string, string>, row: any) => {
-        acc[row.key] = row?.value
-        return acc
-    }, {} as Record<string, string>)
-    db.close()
-    return sendResponse(c, {
-        id,
-        status: 'active',
-        meta
-    })
+// update project by id
+const updateProject = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    try {
+        const id = c.req.param('id')
+        const user = c.get('user')
+        if (!user) {
+            throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED')
+        }
+        const body = await c.req.json()
+        const { name } = body
+        if (!id || !name) {
+            throw new ApiError('Project id and name are required', 400, 'INVALID_INPUT')
+        }
+        const platformDb = getPlatformDb()
+        const project = await platformDb.select().from(projects).where(eq(projects.id, id))
+
+        if (!project || project.length === 0) {
+            throw new ApiError('Project not found', 404, 'NOT_FOUND')
+        }
+
+        if (project[0].ownerId !== user.id) {
+            throw new ApiError('Unauthorized', 401, 'UNAUTHORIZED')
+        }
+
+        const updatedProject = await platformDb.update(projects).set({ name }).where(eq(projects.id, id)).returning()
+        return sendResponse(c, updatedProject[0] || { id, name })
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error
+        }
+        console.error('Update project failed:', error)
+        throw new ApiError('Failed to update project', 500, 'INTERNAL_ERROR', error)
+    }
+}
+
+const getProject = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    try {
+        const id = c.req.param('id')
+        const dbPath = path.resolve(process.cwd(), 'dbs', `${id}.sqlite`)
+
+        if (!fs.existsSync(dbPath)) {
+            throw new ApiError('Project not found', 404, 'NOT_FOUND')
+        }
+        const db = new Database(dbPath)
+        const meta = db.prepare('SELECT * FROM _meta').all().reduce((acc: Record<string, string>, row: any) => {
+            acc[row.key] = row?.value
+            return acc
+        }, {} as Record<string, string>)
+
+        // get all tables with their schema in the project database except _meta sqlite_sequence 
+        const tables = db.prepare('SELECT name FROM sqlite_master WHERE type = "table" AND name != "_meta" AND name != "sqlite_sequence"').all()
+        db.close()
+        return sendResponse(c, {
+            id,
+            status: 'active',
+            meta,
+            tables
+        })
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error
+        }
+        console.error('Get project failed:', error)
+        // If it's a file system error, we might still want to return 404 or 500 depending on context,
+        // but here general fallback is 500 unless we know it's missing which is handled above.
+        throw new ApiError('Failed to get project details', 500, 'INTERNAL_ERROR', error)
+    }
+}
+
+// delete project by id
+const deleteProject = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    try {
+        const id = c.req.param('id')
+        const user = c.get('user')
+        if (!user) {
+            throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED')
+        }
+        const platformDb = getPlatformDb()
+        const project = await platformDb.select().from(projects).where(eq(projects.id, id))
+
+        if (!project || project.length === 0) {
+            throw new ApiError('Project not found', 404, 'NOT_FOUND')
+        }
+
+        if (project[0].ownerId !== user.id) {
+            throw new ApiError('Unauthorized', 401, 'UNAUTHORIZED')
+        }
+
+        const deletedProject = await platformDb.delete(projects).where(eq(projects.id, id)).returning()
+
+        // delete the project database
+        const dbPath = path.resolve(process.cwd(), 'dbs', `${id}.sqlite`)
+        if (fs.existsSync(dbPath)) {
+            try {
+                fs.unlinkSync(dbPath)
+            } catch (e) {
+                console.warn(`Failed to delete database file for project ${id}:`, e)
+            }
+        }
+
+        return sendResponse(c, {
+            message: 'Project deleted successfully',
+            deletedProject: deletedProject[0]
+        })
+    } catch (error) {
+        if (error instanceof ApiError) {
+            throw error
+        }
+        console.error('Delete project failed:', error)
+        throw new ApiError('Failed to delete project', 500, 'INTERNAL_ERROR', error)
+    }
+}
+
+export {
+    createProject,
+    deleteProject,
+    getProject,
+    getAllProjects,
+    updateProject
 }
