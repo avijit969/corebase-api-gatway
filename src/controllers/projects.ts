@@ -123,7 +123,15 @@ const getAllProjects = async (c: Context<{ Bindings: Bindings, Variables: Variab
             throw new ApiError('Authentication required', 401, 'AUTH_REQUIRED')
         }
         const platformDb = getPlatformDb()
-        const allProjects = await platformDb.select().from(projects).where(eq(projects.ownerId, user.id))
+        // get all projects where owner id is equal to user id with api key
+        const allProjects = await platformDb.select(
+            {
+                id: projects.id,
+                name: projects.name,
+                api_key: apiKeys.key,
+                created_at: projects.createdAt
+            }
+        ).from(projects).where(eq(projects.ownerId, user.id)).innerJoin(apiKeys, eq(projects.id, apiKeys.projectId))
         return sendResponse(c, allProjects)
     } catch (error) {
         if (error instanceof ApiError) {
@@ -197,8 +205,6 @@ const getProject = async (c: Context<{ Bindings: Bindings, Variables: Variables 
             throw error
         }
         console.error('Get project failed:', error)
-        // If it's a file system error, we might still want to return 404 or 500 depending on context,
-        // but here general fallback is 500 unless we know it's missing which is handled above.
         throw new ApiError('Failed to get project details', 500, 'INTERNAL_ERROR', error)
     }
 }

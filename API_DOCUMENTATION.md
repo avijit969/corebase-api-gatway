@@ -111,6 +111,27 @@ Provisions a new project, database, and API Key.
 ```
 *Save the `api_key`! It is needed for all Project Level interactions.*
 
+### List All Projects
+Get a list of all projects owned by the authenticated developer.
+
+*   **Endpoint**: `GET /v1/projects`
+*   **Auth**: `Authorization: Bearer <platform_token>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "proj_...",
+      "ownerId": "user_...",
+      "name": "My Cool App",
+      "createdAt": "..."
+    }
+  ]
+}
+```
+
 ### Get Project Details
 *   **Endpoint**: `GET /v1/projects/:id`
 *   **Auth**: `Authorization: Bearer <platform_token>`
@@ -126,7 +147,81 @@ Provisions a new project, database, and API Key.
       "name": "My Cool App",
       "owner_id": "...",
       "created_at": "..."
+    },
+    "tables": [
+      {
+        "name": "My Table"
+      }
+    ]
+  }
+}
+```
+
+### Update Project
+Update a project's details (e.g., name).
+
+*   **Endpoint**: `PUT /v1/projects/:id`
+*   **Auth**: `Authorization: Bearer <platform_token>`
+
+**Request Body:**
+```json
+{
+  "name": "Updated App Name"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "id": "proj_...",
+    "name": "Updated App Name",
+    "ownerId": "..."
+  }
+}
+```
+
+### Delete Project
+Permanently delete a project and its resources.
+
+*   **Endpoint**: `DELETE /v1/projects/:id`
+*   **Auth**: `Authorization: Bearer <platform_token>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Project deleted successfully",
+    "deletedProject": {
+      "id": "proj_...",
+      "name": "My Cool App"
     }
+  }
+}
+```
+
+### List Project Users
+Get a list of all end-users registered to a specific project.
+
+*   **Endpoint**: `GET /v1/projects/:id/users`
+*   **Auth**: `Authorization: Bearer <platform_token>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "users": [
+      {
+        "id": "user_...",
+        "email": "enduser@app.com",
+        "name": "John Doe",
+        "role": "user",
+        "created_at": "..."
+      }
+    ]
   }
 }
 ```
