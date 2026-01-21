@@ -9,8 +9,8 @@ export const authMiddleware = async (c: Context, next: Next) => {
     const authHeader = c.req.header('Authorization')
     const apiKey = c.req.header('x-api-key')
     const path = c.req.path
-    // Platform auth routes and UI routes exception
-    if (path.startsWith('/v1/platform/auth') || path === '/' || path === '/docs') {
+    // Platform auth routes and UI routes exception and all static files , fav icon
+    if (path.startsWith('/v1/platform/auth') || path === '/' || path === '/docs' || path === '/health' || path.startsWith('/static') || path === '/favicon.ico') {
         await next()
         return
     }
