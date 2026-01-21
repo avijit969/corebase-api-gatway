@@ -386,7 +386,7 @@ const updateColumn = async (c: Context<{ Bindings: Bindings, Variables: Variable
 const addForeignKey = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const projectId = c.get('projectId')
     const tableName = c.req.param('table')
-    const body = await c.req.json() as { column: string, references: { table: string, column: string }, onDelete: string }
+    const body = await c.req.json() as { column: string, references: { table: string, column: string, onDelete: string } }
 
     if (!projectId || !tableName) {
         throw new ApiError('Project ID and table name are required', 400, 'DB_MISSING_PROJECT_ID_OR_TABLE_NAME')
@@ -404,7 +404,7 @@ const addForeignKey = async (c: Context<{ Bindings: Bindings, Variables: Variabl
     const db = new Database(dbPath)
 
     try {
-        const query = `ALTER TABLE ${tableName} ADD CONSTRAINT ${body.column}_fk FOREIGN KEY (${body.column}) REFERENCES ${body.references.table}(${body.references.column}) ON DELETE ${body.onDelete}`
+        const query = `ALTER TABLE ${tableName} ADD CONSTRAINT ${body.column}_fk FOREIGN KEY (${body.column}) REFERENCES ${body.references.table}(${body.references.column}) ON DELETE ${body.references.onDelete}`
         db.run(query)
 
         return sendResponse(c, {

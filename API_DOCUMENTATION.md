@@ -316,22 +316,80 @@ Login a user to get a User Session Token.
 
 ---
 
-## 4. Database (SQL-like)
-*Interact with the project's SQLite database.*
+## 4. Database Schema Management
+*Manage your project's database structure.*
+
+### List All Tables
+Get a list of all tables in the project database.
+
+*   **Endpoint**: `GET /v1/db/tables`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "tables": [
+      {
+        "name": "posts",
+        "created_at": null
+      },
+      {
+        "name": "users",
+        "created_at": null
+      }
+    ]
+  }
+}
+```
 
 ### Create Table
+Create a new table with detailed schema definition.
+
 *   **Endpoint**: `POST /v1/db/tables`
-*   **Headers**: `x-api-key: <project_api_key>` (Usually Service Role/Admin, pending policy implementation)
+*   **Headers**: `x-api-key: <project_api_key>`
 
 **Request Body:**
 ```json
 {
-  "name": "posts",
-  "schema": {
-    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
-    "title": "TEXT NOT NULL",
-    "content": "TEXT",
-    "user_id": "TEXT"
+  "table": "posts",
+  "columns": [
+    {
+      "name": "id",
+      "type": "integer",
+      "primary": true,
+      "autoIncrement": true
+    },
+    {
+      "name": "title",
+      "type": "text",
+      "notNull": true
+    },
+    {
+      "name": "user_id",
+      "type": "text",
+      "notNull": true,
+      "references": {
+        "table": "users",
+        "column": "id",
+        "onDelete": "cascade"
+      }
+    },
+    {
+      "name": "created_at",
+      "type": "datetime",
+      "default": "now"
+    }
+  ],
+  "indexes": [
+    { "columns": ["user_id"] }
+  ],
+  "rls": {
+    "select": "user_id = auth.uid",
+    "insert": "auth.role = 'authenticated'",
+    "update": "user_id = auth.uid",
+    "delete": "user_id = auth.uid"
   }
 }
 ```
@@ -343,63 +401,168 @@ Login a user to get a User Session Token.
   "data": {
     "message": "Table 'posts' created successfully",
     "table": "posts",
-    "schema": { ... }
+    "columns": [...],
+    "indexes": [...],
+    "rls": {...}
   }
 }
 ```
 
-### Create Row (Insert)
-*   **Endpoint**: `POST /v1/db/:table`
-*   **Headers**:
-    *   `x-api-key`: `<project_api_key>`
-    *   `Authorization`: `Bearer <user_token>` (Optional - will auto-inject `user_id` if present in schema)
+### Get Table Details
+Get the full schema of a specific table.
 
-**Request Body:**
-```json
-{
-  "title": "Hello World",
-  "content": "This is my first post"
-}
-```
-
-**Response (201 Created):**
-```json
-{
-  "status": "success",
-  "data": {
-    "data": {
-      "id": 1,
-      "title": "Hello World",
-      "content": "This is my first post",
-      "user_id": "user_..."
-    },
-    "operation": "INSERT",
-    "table": "posts"
-  }
-}
-```
-
-### List Rows
-*   **Endpoint**: `GET /v1/db/:table`
-*   **Headers**:
-    *   `x-api-key`: `<project_api_key>`
-    *   `Authorization`: `Bearer <user_token>` (Optional - automatically filters by `user_id` if table has that column)
+*   **Endpoint**: `GET /v1/db/tables/:table`
+*   **Headers**: `x-api-key: <project_api_key>`
 
 **Response (200 OK):**
 ```json
 {
   "status": "success",
   "data": {
-    "data": [
+    "table": "posts",
+    "columns": [
       {
-        "id": 1,
-        "title": "Hello World",
-        ...
+        "name": "id",
+        "type": "integer",
+        "primary": true,
+        "notNull": false
+      },
+      {
+        "name": "title",
+        "type": "text",
+        "notNull": true
       }
     ],
-    "meta": {
-      "count": 1
+    "indexes": [
+      { "columns": ["user_id"] }
+    ],
+    "rls": {
+      "select": "true",
+      "insert": "true",
+      "update": "true",
+      "delete": "true"
     }
+  }
+}
+```
+
+### Add Column
+Add a new column to an existing table.
+
+*   **Endpoint**: `POST /v1/db/tables/:table/columns`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Request Body:**
+```json
+{
+  "name": "status",
+  "type": "text",
+  "default": "draft"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Column 'status' added to table 'posts' successfully",
+    "table": "posts",
+    "column": {
+      "name": "status",
+      "type": "text",
+      "default": "draft"
+    }
+  }
+}
+```
+
+### Update Column (Rename)
+Rename an existing column.
+
+*   **Endpoint**: `PUT /v1/db/tables/:table/columns/:column`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Request Body:**
+```json
+{
+  "name": "new_column_name"
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Column 'old_name' renamed to 'new_column_name' in table 'posts' successfully",
+    "table": "posts",
+    "column": { "name": "new_column_name" }
+  }
+}
+```
+
+### Delete Column
+Remove a column from a table.
+
+*   **Endpoint**: `DELETE /v1/db/tables/:table/columns/:column`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Column 'status' deleted from table 'posts' successfully",
+    "table": "posts",
+    "column": "status"
+  }
+}
+```
+
+### Add Foreign Key
+Add a foreign key constraint to an existing column.
+
+*   **Endpoint**: `POST /v1/db/tables/:table/foreign-keys`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Request Body:**
+```json
+{
+  "column": "author_id",
+  "references": {
+    "table": "users",
+    "column": "id",
+    "onDelete": "cascade"
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Foreign key added to table 'posts' successfully",
+    "table": "posts",
+    "foreignKey": { ... }
+  }
+}
+```
+
+### Delete Table
+Permanently delete a table.
+
+*   **Endpoint**: `DELETE /v1/db/tables/:table`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Table 'posts' deleted successfully",
+    "table": "posts"
   }
 }
 ```
