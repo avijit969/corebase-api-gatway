@@ -6,6 +6,7 @@ import { Bindings, Variables } from '../types'
 import { getPlatformDb } from '../db/platform'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
+import { validateToken } from '../utils/jwt'
 
 export const register = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const body = await c.req.json()
@@ -23,7 +24,9 @@ export const register = async (c: Context<{ Bindings: Bindings, Variables: Varia
             id: userId,
             email: body.email,
             passwordHash: passwordHash,
-            role: 'authenticated'
+            role: 'authenticated',
+            name: body.name,
+            created_at: new Date().toISOString()
         }).execute()
         console.log(result)
         return sendResponse(c, {
@@ -70,3 +73,23 @@ export const login = async (c: Context<{ Bindings: Bindings, Variables: Variable
 
     return sendResponse(c, { access_token: token, expires_in: 3600 })
 }
+// get the currect user of the corebase dashboard user
+const getUserSession = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    const token = c.req.header('Authorization')?.split('Bearer ')[1]
+    if (!token) {
+        throw new ApiError('Token required', 401, 'AUTH_TOKEN_REQUIRED')
+    }
+    const secret = c.env?.JWT_SECRET || 'super_secure_jwt_secret_key_12345'
+    const payload = await validateToken(token, secret)
+    console.log(JSON.stringify(payload))
+    // get user from db
+    const db = getPlatformDb()
+    const [user] = await db.select({
+        id: users.id,
+        email: users.email,
+        role: users.role
+    }).from(users).where(eq(users.id, payload.sub)).limit(1)
+    return sendResponse(c, { user: user })
+}
+
+export { getUserSession }

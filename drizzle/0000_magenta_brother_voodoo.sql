@@ -22,6 +22,10 @@ CREATE TABLE `users` (
 	`email` text NOT NULL,
 	`password_hash` text NOT NULL,
 	`role` text DEFAULT 'authenticated',
+	`status` text DEFAULT 'active',
+	`avatar` text DEFAULT '',
+	`name` text DEFAULT '',
+	`updated_at` text DEFAULT CURRENT_TIMESTAMP,
 	`created_at` text DEFAULT CURRENT_TIMESTAMP
 );
 --> statement-breakpoint
