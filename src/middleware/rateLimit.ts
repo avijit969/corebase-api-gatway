@@ -26,5 +26,5 @@ export const rateLimitMiddleware = async (c: Context, next: Next) => {
         throw new ApiError('Rate limit exceeded', 429, 'RATE_LIMIT_EXCEEDED')
     }
 
-    await next()
+    return await next()
 }

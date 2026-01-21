@@ -5,7 +5,7 @@ import { ApiError } from '../utils/errors'
 import { Bindings, Variables } from '../types'
 import { sign } from 'hono/jwt'
 import * as fs from 'node:fs'
-import { getProjectDbPath } from './db'
+import { getProjectDbPath } from './tables'
 // register the end user of the project
 const projectSignup = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     let projectId: string | undefined = c.get('projectId')

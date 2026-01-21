@@ -5,8 +5,7 @@ export const projectMiddleware = async (c: Context, next: Next) => {
     const path = c.req.path;
     // Skip for Auth, Projects (Creation/Management), Health, and UI
     if (path.startsWith('/v1/auth') || path.startsWith('/v1/projects') || path.startsWith('/health') || path.startsWith('/v1/platform/auth') || path === '/' || path === '/docs' || path.startsWith('/static') || path === '/favicon.ico') {
-        await next()
-        return
+        return await next()
     }
 
     const projectId = c.get('projectId')

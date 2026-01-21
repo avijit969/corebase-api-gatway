@@ -11,8 +11,7 @@ export const authMiddleware = async (c: Context, next: Next) => {
     const path = c.req.path
     // Platform auth routes and UI routes exception and all static files , fav icon
     if (path.startsWith('/v1/platform/auth') || path === '/' || path === '/docs' || path === '/health' || path.startsWith('/static') || path === '/favicon.ico') {
-        await next()
-        return
+        return await next()
     }
 
     // 1. Validate API Key if present (sets Platform Context)

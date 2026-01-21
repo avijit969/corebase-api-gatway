@@ -8,8 +8,7 @@ export const policyMiddleware = async (c: Context, next: Next) => {
 
         // Service role bypasses RLS
         if (role === 'service_role') {
-            await next()
-            return
+            return await next()
         }
         const method = c.req.method
 
