@@ -17,6 +17,7 @@ import storageRoutes from './routes/storage'
 import projectRoutes from './routes/projects'
 import platformAuthRoutes from './routes/platform.auth'
 import uiRoutes from './routes/ui'
+import tableRoutes from './routes/table_operation'
 
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
@@ -40,7 +41,7 @@ app.route('/v1/platform/auth', platformAuthRoutes)
 app.route('/v1/projects', projectRoutes)
 app.route('/v1/db', dbRoutes)
 app.route('/v1/storage', storageRoutes)
-
+app.route('/v1/table_operation', tableRoutes)
 // Health Check
 app.get('/health', (c) => c.json({ status: 'ok', version: '1.0.0' }))
 

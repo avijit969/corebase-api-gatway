@@ -27,7 +27,8 @@ export const register = async (c: Context<{ Bindings: Bindings, Variables: Varia
             passwordHash: passwordHash,
             role: 'authenticated',
             name: body.name,
-            created_at: new Date().toISOString()
+            createdAt: new Date().toISOString(),
+            updatedAt: new Date().toISOString()
         }).execute()
 
         // send welcome email to the new registered user
@@ -71,7 +72,7 @@ export const login = async (c: Context<{ Bindings: Bindings, Variables: Variable
         sub: user.id,
         project_id: 'default',
         role: user.role,
-        exp: Math.floor(Date.now() / 1000) + 60 * 60, // 1 hour
+        exp: Math.floor(Date.now() / 1000) + 60 * 60 * 12, // 12 hour
     }, secret)
 
     return sendResponse(c, { access_token: token, expires_in: 3600 })
