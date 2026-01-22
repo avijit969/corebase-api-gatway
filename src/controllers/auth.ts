@@ -7,6 +7,7 @@ import { getPlatformDb } from '../db/platform'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
 import { validateToken } from '../utils/jwt'
+import { sendWelcomeEmail } from '../utils/email'
 
 export const register = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const body = await c.req.json()
@@ -28,7 +29,9 @@ export const register = async (c: Context<{ Bindings: Bindings, Variables: Varia
             name: body.name,
             created_at: new Date().toISOString()
         }).execute()
-        console.log(result)
+
+        // send welcome email to the new registered user
+        sendWelcomeEmail(body.email, body.name || body.email.split('@')[0].toUpperCase())
         return sendResponse(c, {
             user: { id: userId, email: body.email }
         }, 201)

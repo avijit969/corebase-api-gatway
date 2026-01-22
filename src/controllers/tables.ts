@@ -404,16 +404,80 @@ const addForeignKey = async (c: Context<{ Bindings: Bindings, Variables: Variabl
     const db = new Database(dbPath)
 
     try {
-        const query = `ALTER TABLE ${tableName} ADD CONSTRAINT ${body.column}_fk FOREIGN KEY (${body.column}) REFERENCES ${body.references.table}(${body.references.column}) ON DELETE ${body.references.onDelete}`
-        db.run(query)
+        // 1. Get current schema SQL
+        const tableEntry = db.query(`SELECT sql FROM sqlite_master WHERE type='table' AND name=?`).get(tableName) as { sql: string } | null
+        if (!tableEntry || !tableEntry.sql) {
+            throw new ApiError(`Table '${tableName}' not found`, 404, 'DB_TABLE_NOT_FOUND')
+        }
 
-        return sendResponse(c, {
-            message: `Foreign key added to table '${tableName}' successfully`,
-            table: tableName,
-            foreignKey: body
-        })
+        // 2. Prepare Temp Table Name
+        const tempTableName = `${tableName}_new_${Date.now()}`
+
+        // 3. Modify SQL to create Temp Table with new Constraint
+        const originalSql = tableEntry.sql
+
+        // Replace table name with temp table name in the CREATE statement
+        // Regex handles "CREATE TABLE tableName" or "CREATE TABLE "tableName"" 
+        const tableNameRegex = new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?(["'\`]${tableName}["'\`]|${tableName})`, 'i')
+        let newSql = originalSql.replace(tableNameRegex, `CREATE TABLE "${tempTableName}"`)
+
+        // Find the target column and append REFERENCES
+        // Look for: optional quote + columnName + optional quote + space + rest of definition
+        // ends at comma or closing parenthesis
+        const colRegex = new RegExp(`(["'\`]?\\b${body.column}\\b["'\`]?\\s+[^,)]+)`, 'i')
+
+        if (!colRegex.test(newSql)) {
+            throw new ApiError(`Column '${body.column}' not found in table definition`, 400, 'DB_COLUMN_NOT_FOUND')
+        }
+
+        const fkDefinition = ` REFERENCES ${body.references.table}(${body.references.column})` + (body.references.onDelete ? ` ON DELETE ${body.references.onDelete.toUpperCase()}` : '')
+        newSql = newSql.replace(colRegex, `$1${fkDefinition}`)
+
+        // 4. Get Indexes & Triggers to restore
+        const indexes = db.query(`SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name=? AND sql IS NOT NULL`).all(tableName) as { sql: string }[]
+        const triggers = db.query(`SELECT sql FROM sqlite_master WHERE type='trigger' AND tbl_name=? AND sql IS NOT NULL`).all(tableName) as { sql: string }[]
+
+        // 5. Execute Migration Transaction
+        db.run('BEGIN TRANSACTION')
+
+        try {
+            // Create Temp Table
+            db.run(newSql)
+
+            // Copy Data
+            db.run(`INSERT INTO "${tempTableName}" SELECT * FROM "${tableName}"`)
+
+            // Drop Old Table
+            db.run(`DROP TABLE "${tableName}"`)
+
+            // Rename Temp to New
+            db.run(`ALTER TABLE "${tempTableName}" RENAME TO "${tableName}"`)
+
+            // Restore Indexes
+            for (const idx of indexes) {
+                db.run(idx.sql)
+            }
+
+            // Restore Triggers
+            for (const trg of triggers) {
+                db.run(trg.sql)
+            }
+
+            db.run('COMMIT')
+
+            return sendResponse(c, {
+                message: `Foreign key added to table '${tableName}' successfully`,
+                table: tableName,
+                foreignKey: body
+            })
+        } catch (txError: any) {
+            db.run('ROLLBACK')
+            throw txError
+        }
+
     } catch (e: any) {
         console.error('Add foreign key error:', e)
+        if (e instanceof ApiError) throw e
         throw new ApiError(`Failed to add foreign key: ${e.message}`, 500, 'DB_ADD_FOREIGN_KEY_ERROR')
     } finally {
         db.close()
