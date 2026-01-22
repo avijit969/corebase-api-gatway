@@ -194,6 +194,7 @@ const getProject = async (c: Context<{ Bindings: Bindings, Variables: Variables 
         // get all tables with their schema in the project database except _meta sqlite_sequence 
         const tables = db.prepare('SELECT name FROM sqlite_master WHERE type = "table" AND name != "_meta" AND name != "sqlite_sequence"').all()
         db.close()
+        console.log(tables, meta, id)
         return sendResponse(c, {
             id,
             status: 'active',
