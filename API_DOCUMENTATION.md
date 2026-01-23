@@ -600,6 +600,154 @@ Permanently delete a table.
 
 ---
 
+
+---
+
+## 6. Data Operations
+*Perform CRUD operations on table data.*
+*Requires `x-api-key` header.*
+
+### Insert Data
+Insert one or more rows into a table.
+
+*   **Endpoint**: `POST /v1/table_operation/insert/:table_name`
+*   **Headers**: 
+    *   `x-api-key`: `<project_api_key>`
+    *   `Authorization`: `Bearer <user_token>` (If RLS requires auth)
+
+**Request Body:**
+*Can be a single object, an array of objects, or enclosed in a `values` key.*
+
+```json
+[
+  {
+    "title": "My First Post",
+    "name":"Disha",
+    "user_id": "user_123"
+  },
+  {
+    "title": "Another Post",
+    "name":"Disha",
+    "user_id": "user_123"
+  }
+]
+```
+
+**Response (201 Created):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Rows inserted successfully",
+    "count": 2
+  }
+}
+```
+
+### Update Data
+Update rows based on a condition.
+
+*   **Endpoint**: `PUT /v1/table_operation/update/:table_name`
+*   **Headers**: 
+    *   `x-api-key`: `<project_api_key>`
+    *   `Authorization`: `Bearer <user_token>`
+
+**Request Body:**
+```json
+{
+  "updates": {
+    "title": "Updated Title",
+    "name":"Updated Name"
+  },
+  "where": {
+    "id": 1
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Rows updated successfully",
+    "changes": 1
+  }
+}
+```
+
+### Delete Data
+Delete rows based on a condition.
+
+*   **Endpoint**: `DELETE /v1/table_operation/delete/:table_name`
+*   **Headers**: 
+    *   `x-api-key`: `<project_api_key>`
+    *   `Authorization`: `Bearer <user_token>`
+
+**Request Body:**
+```json
+{
+  "where": {
+    "id": 1
+  }
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Rows deleted successfully",
+    "changes": 1
+  }
+}
+```
+
+### Select Data (Query)
+Query data with filtering, sorting, and pagination.
+
+*   **Endpoint**: `POST /v1/table_operation/select/:table_name`
+*   **Headers**: 
+    *   `x-api-key`: `<project_api_key>`
+    *   `Authorization`: `Bearer <user_token>`
+
+**Request Body (Optional):**
+```json
+{
+  "columns": ["id", "title", "created_at"],
+  "where": {
+    "user_id": "user_123"
+  },
+  "sort": "created_at",
+  "order": "DESC",
+  "limit": 10,
+  "page": 1
+}
+```
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "data": [
+      {
+        "id": 1,
+        "title": "My First Post",
+        "created_at": "2024-03-20 10:00:00"
+      }
+    ],
+    "meta": {
+      "total": 1,
+      "page": 1,
+      "limit": 10,
+      "totalPages": 1
+    }
+  }
+}
+```
+
 ## Error Response Format
 All errors follow this format:
 
