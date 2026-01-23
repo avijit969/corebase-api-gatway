@@ -24,6 +24,7 @@ const insertTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
 
     try {
         const body = await c.req.json()
+        console.log(body)
         let rows: Record<string, any>[] = []
 
         if (Array.isArray(body)) {
@@ -193,7 +194,7 @@ const deleteTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
     }
 }
 
-const selectTable = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+const queryTablesData = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const projectId = c.get('projectId')
     const tableName = c.req.param('table_name')
     const query = c.req.query()
@@ -214,16 +215,24 @@ const selectTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
         let order = 'ASC'
         let selectColumns = '*'
         let body: any = {}
+
         try {
-            if (c.req.header('content-type')?.includes('application/json')) {
+            const contentType = c.req.header('content-type')
+            console.log(contentType)
+            if (contentType && contentType.includes('application/json')) {
+                console.log('json')
                 body = await c.req.json()
+                console.log(body)
+            } else if (contentType && contentType.includes('application/x-www-form-urlencoded')) {
+                console.log('form')
+                body = await c.req.formData()
+                console.log(body)
             }
         } catch (e) {
             // No body or invalid json
         }
 
         if (Object.keys(body).length > 0) {
-            console.log(body.where)
             filters = body.where || {}
             limit = typeof body.limit === 'number' ? body.limit : 10
             if (typeof body.page === 'number') {
@@ -255,6 +264,10 @@ const selectTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
         }
 
         const offset = (page - 1) * limit
+        const params: any[] = [] // Create new params array instead of mutating a shared one if we strictly followed buildWhereClause structure, but here we can just use arrays.
+
+        // Use helper but careful about params mutation if I reuse the helper logic directly or re-implement.
+        // The helper "buildWhereClause" returns { clause, params }.
         const whereResult = buildWhereClause(filters)
 
         let sql = `SELECT ${selectColumns} FROM "${tableName}" ${whereResult.clause}`
@@ -264,16 +277,16 @@ const selectTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
             sql += ` ORDER BY "${sort}" ${validOrder}`
         }
         sql += ` LIMIT ? OFFSET ?`
-        whereResult.params.push(limit, offset)
+
+        // Combine all params: where params + limit + offset
+        const allParams = [...whereResult.params, limit, offset]
 
         const countSql = `SELECT COUNT(*) as total FROM "${tableName}" ${whereResult.clause}`
 
-        const countParams = whereResult.params.slice(0, -2)
-
-        const totalResult = db.query(countSql).get(...countParams) as { total: number }
+        const totalResult = db.query(countSql).get(...whereResult.params) as { total: number }
         const total = totalResult ? totalResult.total : 0
 
-        const rows = db.query(sql).all(...whereResult.params)
+        const rows = db.query(sql).all(...allParams)
 
         return sendResponse(c, {
             data: rows,
@@ -287,10 +300,17 @@ const selectTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
     } catch (e: any) {
         console.error('Select table error:', e)
         if (e instanceof ApiError) throw e
+        if (e.message.includes('no such table')) {
+            throw new ApiError(`Table '${tableName}' not found`, 404, 'DB_TABLE_NOT_FOUND')
+        }
         throw new ApiError(`Failed to select data: ${e.message}`, 500, 'DB_SELECT_ERROR')
     } finally {
         db.close()
     }
 }
-
-export { insertTable, updateTable, deleteTable, selectTable }
+export const testRoute = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
+    const body = await c.req.json()
+    console.log(body)
+    return sendResponse(c, { message: 'Test route' })
+}
+export { insertTable, updateTable, deleteTable, queryTablesData }
