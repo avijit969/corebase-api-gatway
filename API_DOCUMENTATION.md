@@ -568,11 +568,100 @@ Permanently delete a table.
 ```
 
 ---
+## 5. Storage (Buckets & Files)
+*Manage file uploads and logical buckets.*
 
-## 5. Storage
-*File uploads.*
+### 1. Bucket Operations
 
-### Get Signed Upload URL
+#### Create Bucket
+Create a new logical bucket to organize files.
+
+*   **Endpoint**: `POST /v1/storage/buckets`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Request Body:**
+```json
+{
+  "name": "avatars",
+  "public": true,
+  "allowedMimeTypes": ["image/png", "image/jpeg"],
+  "fileSizeLimit": 5242880
+}
+```
+
+**Response (201 Created):**
+```json
+{
+  "status": "success",
+  "data": {
+    "message": "Bucket created",
+    "bucket": {
+      "name": "avatars",
+      "public": true
+    }
+  }
+}
+```
+
+#### List Buckets
+List all buckets in the project.
+
+*   **Endpoint**: `GET /v1/storage/buckets`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "buckets": [
+      {
+        "id": "avatars",
+        "name": "avatars",
+        "public": true,
+        "created_at": "..."
+      }
+    ]
+  }
+}
+```
+
+#### Get Bucket Details
+Get details of a specific bucket and its files.
+
+*   **Endpoint**: `GET /v1/storage/buckets/:name`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+**Response (200 OK):**
+```json
+{
+  "status": "success",
+  "data": {
+    "bucket": { ... },
+    "files": [ ... ]
+  }
+}
+```
+
+#### Delete Bucket
+Delete a bucket. **Bucket must be empty.**
+
+*   **Endpoint**: `DELETE /v1/storage/buckets/:name`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+#### Empty Bucket
+Remove all files from a bucket (Metadata only for now).
+
+*   **Endpoint**: `POST /v1/storage/buckets/:name/empty`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+---
+
+### 2. File Operations (Upload Flow)
+
+To upload a file into a bucket, follow this 2-step process.
+
+#### Step 1: Get Signed URL
 *   **Endpoint**: `POST /v1/storage/upload/sign`
 *   **Headers**:
     *   `x-api-key`: `<project_api_key>`
@@ -581,24 +670,48 @@ Permanently delete a table.
 **Request Body:**
 ```json
 {
-  "filename": "avatar.png",
+  "bucketName": "avatars", 
+  "filename": "user_pic.png",
   "contentType": "image/png",
   "size": 10240
 }
 ```
+*Note: `bucketName` is now required.*
 
 **Response (200 OK):**
 ```json
 {
   "status": "success",
   "data": {
-    "uploadUrl": "https://storage.example.com/proj_.../user_.../avatar.png?signature=...",
-    "key": "proj_.../user_.../avatar.png"
+    "uploadUrl": "https://storage.example.com/...",
+    "publicUrl": "https://pub-<id>.r2.dev/...",
+    "key": "proj_.../avatars/...",
+    "fileId": "file_...",
+    "bucket": "avatars"
   }
 }
 ```
 
----
+#### Step 2: Upload File (PUT)
+Use the `uploadUrl` from Step 1.
+
+*   **Method**: `PUT`
+*   **URL**: `<uploadUrl>`
+*   **Headers**: 
+    *   `Content-Type`: `<contentType>` (Must match Step 1)
+*   **Body**: Binary File Content
+
+#### List Files
+List all files, optionally filtered by bucket.
+
+*   **Endpoint**: `GET /v1/storage/files?bucket=avatars`
+*   **Headers**: `x-api-key: <project_api_key>`
+
+#### Delete File
+Delete a specific file.
+
+*   **Endpoint**: `DELETE /v1/storage/files/:id`
+*   **Headers**: `x-api-key: <project_api_key>`
 
 
 ---

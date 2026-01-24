@@ -81,6 +81,8 @@ const createProject = async (c: Context<{ Bindings: Bindings, Variables: Variabl
             );
         `).run()
 
+
+
         const insertMeta = db.prepare('INSERT INTO _meta (key, value) VALUES ($key, $value)')
 
         insertMeta.run({

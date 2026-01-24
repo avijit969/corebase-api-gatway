@@ -91,7 +91,10 @@ const getUserSession = async (c: Context<{ Bindings: Bindings, Variables: Variab
     const [user] = await db.select({
         id: users.id,
         email: users.email,
-        role: users.role
+        role: users.role,
+        name: users.name,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt
     }).from(users).where(eq(users.id, payload.sub)).limit(1)
     return sendResponse(c, { user: user })
 }
