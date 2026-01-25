@@ -5,6 +5,7 @@ import { getProjectDbPath } from "./tables"
 import Database from "bun:sqlite"
 import * as fs from 'node:fs'
 import { Bindings, Variables } from '../types'
+import { redis } from "../utils/redis"
 
 const insertTable = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const projectId = c.get('projectId')
@@ -71,6 +72,17 @@ const insertTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
         })
 
         const insertedCount = insertTx(rows)
+
+        // Invalidate cache
+        const trackingKey = `corebase:${projectId}:${tableName}:keys`
+        try {
+            const keys = await redis.smembers(trackingKey)
+            if (keys.length > 0) await redis.del(...keys)
+            await redis.del(trackingKey)
+            console.log(`[CACHE] Invalidated cache for table: ${tableName}`)
+        } catch (err) {
+            console.error('[CACHE] Invalidation failed:', err)
+        }
 
         return sendResponse(c, {
             message: 'Rows inserted successfully',
@@ -149,6 +161,17 @@ const updateTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
         const sql = `UPDATE "${tableName}" SET ${setClauses.join(', ')} ${whereResult.clause}`
         const info = db.run(sql, params)
 
+        // Invalidate cache
+        const trackingKey = `corebase:${projectId}:${tableName}:keys`
+        try {
+            const keys = await redis.smembers(trackingKey)
+            if (keys.length > 0) await redis.del(...keys)
+            await redis.del(trackingKey)
+            console.log(`[CACHE] Invalidated cache for table: ${tableName}`)
+        } catch (err) {
+            console.error('[CACHE] Invalidation failed:', err)
+        }
+
         return sendResponse(c, { message: 'Rows updated successfully', changes: info.changes })
     } catch (e: any) {
         console.error('Update table error:', e)
@@ -183,6 +206,17 @@ const deleteTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
 
         const sql = `DELETE FROM "${tableName}" ${whereResult.clause}`
         const info = db.run(sql, whereResult.params)
+
+        // Invalidate cache
+        const trackingKey = `corebase:${projectId}:${tableName}:keys`
+        try {
+            const keys = await redis.smembers(trackingKey)
+            if (keys.length > 0) await redis.del(...keys)
+            await redis.del(trackingKey)
+            console.log(`[CACHE] Invalidated cache for table: ${tableName}`)
+        } catch (err) {
+            console.error('[CACHE] Invalidation failed:', err)
+        }
 
         return sendResponse(c, { message: 'Rows deleted successfully', changes: info.changes })
     } catch (e: any) {
@@ -263,11 +297,25 @@ const queryTablesData = async (c: Context<{ Bindings: Bindings, Variables: Varia
             }
         }
 
-        const offset = (page - 1) * limit
-        const params: any[] = [] // Create new params array instead of mutating a shared one if we strictly followed buildWhereClause structure, but here we can just use arrays.
+        // --- CACHE CHECK ---
+        const querySignature = { filters, limit, page, sort, order, selectColumns }
+        const cacheKey = `corebase:${projectId}:${tableName}:${JSON.stringify(querySignature)}`
+        const trackingKey = `corebase:${projectId}:${tableName}:keys`
 
-        // Use helper but careful about params mutation if I reuse the helper logic directly or re-implement.
-        // The helper "buildWhereClause" returns { clause, params }.
+        try {
+            const cachedData = await redis.get(cacheKey)
+            if (cachedData) {
+                console.log(`[CACHE HIT] Key: ${cacheKey}`)
+                return sendResponse(c, JSON.parse(cachedData))
+            }
+        } catch (err) {
+            console.error('[CACHE] Error reading cache:', err)
+        }
+        console.log(`[CACHE MISS] Key: ${cacheKey}`)
+        // -------------------
+
+        const offset = (page - 1) * limit
+        const params: any[] = []
         const whereResult = buildWhereClause(filters)
 
         let sql = `SELECT ${selectColumns} FROM "${tableName}" ${whereResult.clause}`
@@ -288,7 +336,7 @@ const queryTablesData = async (c: Context<{ Bindings: Bindings, Variables: Varia
 
         const rows = db.query(sql).all(...allParams)
 
-        return sendResponse(c, {
+        const resultData = {
             data: rows,
             meta: {
                 total,
@@ -296,7 +344,18 @@ const queryTablesData = async (c: Context<{ Bindings: Bindings, Variables: Varia
                 limit,
                 totalPages: Math.ceil(total / limit)
             }
-        })
+        }
+
+        // --- SET CACHE ---
+        try {
+            await redis.set(cacheKey, JSON.stringify(resultData), 'EX', 300) // 5 minutes
+            await redis.sadd(trackingKey, cacheKey)
+        } catch (err) {
+            console.error('[CACHE] Error setting cache:', err)
+        }
+        // -----------------
+
+        return sendResponse(c, resultData)
     } catch (e: any) {
         console.error('Select table error:', e)
         if (e instanceof ApiError) throw e
