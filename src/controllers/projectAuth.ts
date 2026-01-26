@@ -6,6 +6,7 @@ import { Bindings, Variables } from '../types'
 import { sign } from 'hono/jwt'
 import * as fs from 'node:fs'
 import { getProjectDbPath } from './tables'
+import { sendEndUserWelcomeEmail, sendWelcomeEmail } from '../utils/email'
 // register the end user of the project
 const projectSignup = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     let projectId: string | undefined = c.get('projectId')
@@ -14,8 +15,13 @@ const projectSignup = async (c: Context<{ Bindings: Bindings, Variables: Variabl
     }
 
     const body = await c.req.json()
-    const { email, password, name } = body
+    const { email, password, name, emailTemplate } = body
+    if (emailTemplate) {
+        // TODO send email to the user
 
+    } else {
+        sendEndUserWelcomeEmail(email, name)
+    }
     if (!email || !password) {
         throw new ApiError('Email and password required', 400, 'AUTH_INVALID_INPUT')
     }

@@ -100,6 +100,68 @@ The CoreBase Team
     }
 }
 
-export { sendWelcomeEmail }
+// send enduser welcome email
+const sendEndUserWelcomeEmail = async (email: string, name: string) => {
+    const previewText = "Welcome to your new account!";
+
+    const text = `
+Hi ${name}!
+
+Welcome! Thanks for signing up. We're excited to have you on board.
+
+If you have any questions, feel free to reply to this email.
+`.trim();
+
+    const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+        <title>Welcome</title>
+        <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background-color: #f4f4f5; margin: 0; padding: 0; }
+            .container { max-width: 600px; margin: 40px auto; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+            .header { background-color: #f97316; padding: 30px; text-align: center; }
+            .header h1 { color: #ffffff; margin: 0; font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+            .content { padding: 40px 30px; }
+            .welcome-text { font-size: 18px; margin-bottom: 20px; color: #18181b; }
+            .footer { background-color: #f4f4f5; padding: 20px; text-align: center; font-size: 12px; color: #71717a; border-top: 1px solid #e4e4e7; }
+            /* Hidden Preheader */
+            .preheader { display:none !important; visibility:hidden; mso-hide:all; font-size:1px; color:#ffffff; line-height:1px; max-height:0px; max-width:0px; opacity:0; overflow:hidden; }
+        </style>
+    </head>
+    <body>
+        <span class="preheader">${previewText}</span>
+        <div class="container">
+            <div class="header">
+                <h1>Welcome!</h1>
+            </div>
+            <div class="content">
+                <p class="welcome-text">Hi ${name} 👋</p>
+                <p>Thanks for signing up! We're excited to have you on board.</p>
+                <p>If you have any questions, feel free to reply to this email.</p>
+            </div>
+            <div class="footer">
+                <p>&copy; ${new Date().getFullYear()} CoreBase. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    `
+
+    const { data, error } = await resend.emails.send({
+        from: "CoreBase <corebase@trivyaa.in>",
+        to: email,
+        subject: "Welcome! 🚀",
+        html: html,
+        text: text,
+    })
+
+    if (error) {
+        console.error('Failed to send welcome email:', error)
+    }
+}
+export { sendWelcomeEmail, sendEndUserWelcomeEmail }
 
 // sendWelcomeEmail("abhijitpradhan909@gmail.com", "Abhijit")
