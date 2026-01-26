@@ -1,0 +1,27 @@
+name: Corebase API Gateway CD Pipeline
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Deploy to Azure VM via SSH
+      uses: appleboy/ssh-action@master
+      with:
+        host: ${{ secrets.AZURE_VM_HOST }}
+        username: ${{ secrets.AZURE_VM_USERNAME }}
+        key: ${{ secrets.AZURE_VM_SSH_KEY }}
+        port: 22
+        script: |
+          # Navigate to your project directory
+          cd /home/azureuser/corebase-api-gatway
+          
+          # Pull the latest code
+          git pull origin main
+          
+          # Rebuild and restart containers
+          sudo docker-compose down
+          sudo docker-compose up -d --build
