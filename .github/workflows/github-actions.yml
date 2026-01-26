@@ -23,5 +23,4 @@ jobs:
           git pull origin main
           
           # Rebuild and restart containers
-          sudo docker-compose down
-          sudo docker-compose up -d --build
+          sudo docker compose up --build -d
