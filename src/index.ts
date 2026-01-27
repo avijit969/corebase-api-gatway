@@ -25,9 +25,7 @@ const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 app.use('*', requestId)
 app.use('*', logger())
 app.use('*', secureHeaders())
-app.use('*', cors({
-  origin: ["http://localhost:5173", "http://localhost:5174", "*"]
-}))
+app.use('*', cors())
 
 app.use('*', async (c, next) => {
   // Bun automatically loads .env into process.env, but Hono's c.env might differ in some setups.
