@@ -26,7 +26,7 @@ app.use('*', requestId)
 app.use('*', logger())
 app.use('*', secureHeaders())
 app.use('*', cors({
-  origin: ["*"]
+  origin: ["http://localhost:5173", "http://localhost:5174", "*"]
 }))
 
 app.use('*', async (c, next) => {
