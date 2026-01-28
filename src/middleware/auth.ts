@@ -37,8 +37,9 @@ export const authMiddleware = async (c: Context, next: Next) => {
     }
 
     // 2. Validate Bearer Token if present (sets User Context)
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-        const token = authHeader.split(' ')[1]
+    const queryToken = c.req.query('token')
+    if ((authHeader && authHeader.startsWith('Bearer ')) || queryToken) {
+        const token = queryToken || authHeader!.split(' ')[1]
         const secret = c.env?.JWT_SECRET || 'super_secure_jwt_secret_key_12345'
 
         try {

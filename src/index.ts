@@ -1,4 +1,6 @@
 import { Hono } from 'hono'
+import { upgradeWebSocket, websocket } from 'hono/bun'
+import { createRealtimeRouter } from './realtime/server'
 import { logger } from 'hono/logger'
 import { cors } from 'hono/cors'
 import { secureHeaders } from 'hono/secure-headers'
@@ -19,6 +21,7 @@ import platformAuthRoutes from './routes/platform.auth'
 import uiRoutes from './routes/ui'
 import tableRoutes from './routes/table_operation'
 
+
 const app = new Hono<{ Bindings: Bindings, Variables: Variables }>()
 
 // Global Middleware
@@ -27,26 +30,6 @@ app.use('*', logger())
 app.use('*', secureHeaders())
 app.use('*', cors())
 
-app.use('*', async (c, next) => {
-  // Bun automatically loads .env into process.env, but Hono's c.env might differ in some setups.
-  // We explicitly patch c.env from process.env for local development reliability.
-  if (!c.env.R2_ACCESS_KEY_ID && process.env.R2_ACCESS_KEY_ID) {
-    c.env.R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID
-  }
-  if (!c.env.R2_SECRET_ACCESS_KEY && process.env.R2_SECRET_ACCESS_KEY) {
-    c.env.R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY
-  }
-  if (!c.env.R2_ENDPOINT && process.env.R2_ENDPOINT) {
-    c.env.R2_ENDPOINT = process.env.R2_ENDPOINT
-  }
-  if (!c.env.R2_PUBLIC_URL && process.env.R2_PUBLIC_URL) {
-    c.env.R2_PUBLIC_URL = process.env.R2_PUBLIC_URL
-  }
-  if (!c.env.STORAGE_BUCKET && process.env.STORAGE_BUCKET) {
-    c.env.STORAGE_BUCKET = process.env.STORAGE_BUCKET
-  }
-  await next()
-})
 
 // Core Logic Middleware
 // Order matters: RateLimit -> Auth -> Project -> Policy
@@ -63,6 +46,7 @@ app.route('/v1/projects', projectRoutes)
 app.route('/v1/db', dbRoutes)
 app.route('/v1/storage', storageRoutes)
 app.route('/v1/table_operation', tableRoutes)
+app.route('/v1/realtime', createRealtimeRouter(upgradeWebSocket))
 // Health Check
 app.get('/health', (c) => c.json({ status: 'ok', version: '1.0.0' }))
 
@@ -75,4 +59,8 @@ app.notFound((c) => {
   throw new ApiError('Route not found', 404, 'NOT_FOUND')
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  websocket,
+}
+

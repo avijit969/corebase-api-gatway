@@ -6,6 +6,7 @@ import Database from "bun:sqlite"
 import * as fs from 'node:fs'
 import { Bindings, Variables } from '../types'
 import { redis } from "../utils/redis"
+import { emitDBChange } from "../realtime/events"
 
 const insertTable = async (c: Context<{ Bindings: Bindings, Variables: Variables }>) => {
     const projectId = c.get('projectId')
@@ -83,6 +84,9 @@ const insertTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
         } catch (err) {
             console.error('[CACHE] Invalidation failed:', err)
         }
+
+        // Notify realtime subscribers
+        emitDBChange(projectId, tableName)
 
         return sendResponse(c, {
             message: 'Rows inserted successfully',
@@ -172,6 +176,9 @@ const updateTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
             console.error('[CACHE] Invalidation failed:', err)
         }
 
+        // Notify realtime subscribers
+        emitDBChange(projectId, tableName)
+
         return sendResponse(c, { message: 'Rows updated successfully', changes: info.changes })
     } catch (e: any) {
         console.error('Update table error:', e)
@@ -217,6 +224,9 @@ const deleteTable = async (c: Context<{ Bindings: Bindings, Variables: Variables
         } catch (err) {
             console.error('[CACHE] Invalidation failed:', err)
         }
+
+        // Notify realtime subscribers
+        emitDBChange(projectId, tableName)
 
         return sendResponse(c, { message: 'Rows deleted successfully', changes: info.changes })
     } catch (e: any) {
